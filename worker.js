@@ -204,21 +204,34 @@ async function performCheckinWithLogs() {
 				method: 'POST',
 				headers: {
 					'Cookie': cookies,
-					'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+					'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
 					'Accept': 'application/json, text/plain, */*',
 					'Content-Type': 'application/json',
 					'Origin': domain,
 					'Referer': `${domain}/user/panel`,
 					'X-Requested-With': 'XMLHttpRequest'
 				},
+				redirect: 'manual',
 			});
+
+			log(`签到响应状态码: ${checkinResponse.status}`);
+
+			// 检测重定向（通常意味着 session 失效）
+			if (checkinResponse.status >= 300 && checkinResponse.status < 400) {
+				const location = checkinResponse.headers.get('location') || '未知';
+				throw new Error(`签到请求被重定向 (HTTP ${checkinResponse.status}) -> ${location}，可能 Cookie/Session 失效`);
+			}
+
+			if (!checkinResponse.ok) {
+				throw new Error(`签到请求失败 (HTTP ${checkinResponse.status})`);
+			}
 
 			const responseText = await checkinResponse.text();
 			let checkinResult;
 			try {
 				checkinResult = JSON.parse(responseText);
 			} catch (e) {
-				throw new Error(`解析签到响应失败: ${responseText.substring(0, 50)}...`);
+				throw new Error(`解析签到响应失败 (HTTP ${checkinResponse.status}): ${responseText.substring(0, 100)}...`);
 			}
 
 			const finalMsg = `[签到回报] ${checkinResult.msg || (checkinResult.ret === 1 ? '成功' : '失败')}`;
